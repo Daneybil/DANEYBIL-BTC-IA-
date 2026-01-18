@@ -1,0 +1,8 @@
+{
+  "name": "DANEYBIL BTC AI",
+  "description": "Professional command-driven AI system for high-value crypto and blockchain operations.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ]
+}
