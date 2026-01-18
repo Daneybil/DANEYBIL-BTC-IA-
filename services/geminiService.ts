@@ -32,33 +32,62 @@ MANDATORY OUTPUT RULES:
 `;
 
 export async function generateDaneybilResponse(prompt: string, history: Message[], strictMode: boolean, image?: string): Promise<string> {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
-  
-  const contents: any[] = history.map(msg => ({
-    role: msg.role === 'user' ? 'user' : 'model',
-    parts: [{ text: msg.text }]
-  }));
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    return "ENGINE ERROR: API_KEY is missing. Please configure environment variables.";
+  }
 
+  const ai = new GoogleGenAI({ apiKey });
+  
+  // Gemini API requires alternating roles starting with 'user'.
+  const contents: any[] = [];
+  let nextExpectedRole = 'user';
+
+  // We filter history to ensure we start with a 'user' message and alternate roles.
+  // We skip the initial 'assistant' welcome message to satisfy the 'must start with user' rule.
+  for (const msg of history) {
+    const role = msg.role === 'user' ? 'user' : 'model';
+    if (role === nextExpectedRole && msg.text.trim()) {
+      contents.push({
+        role: role,
+        parts: [{ text: msg.text }]
+      });
+      nextExpectedRole = role === 'user' ? 'model' : 'user';
+    }
+  }
+
+  // Current turn parts
   const currentParts: any[] = [{ text: prompt }];
   if (image) {
-    const base64Data = image.split(',')[1];
-    const mimeType = image.split(',')[0].split(':')[1].split(';')[0];
-    currentParts.push({
-      inlineData: {
-        data: base64Data,
-        mimeType: mimeType
-      }
+    try {
+      const base64Data = image.split(',')[1];
+      const mimeType = image.split(',')[0].split(':')[1].split(';')[0];
+      currentParts.push({
+        inlineData: {
+          data: base64Data,
+          mimeType: mimeType
+        }
+      });
+    } catch (e) {
+      console.error("Image processing error:", e);
+    }
+  }
+
+  // Append the latest user message. 
+  // If the last role in 'contents' was 'user', we merge or skip to maintain alternation.
+  if (contents.length > 0 && contents[contents.length - 1].role === 'user') {
+    contents[contents.length - 1].parts[0].text += `\n\n[Follow-up Command]: ${prompt}`;
+    if (image) contents[contents.length - 1].parts.push(currentParts[1]);
+  } else {
+    contents.push({
+      role: 'user',
+      parts: currentParts
     });
   }
 
-  contents.push({
-    role: 'user',
-    parts: currentParts
-  });
-
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview', 
+      model: 'gemini-3-flash-preview', // Using flash for lower latency on Vercel (prevents timeouts)
       contents: contents,
       config: {
         systemInstruction: DANEYBIL_CORE_INSTRUCTION(strictMode),
@@ -67,24 +96,25 @@ export async function generateDaneybilResponse(prompt: string, history: Message[
       },
     });
 
-    return response.text || "SYSTEM ERROR: Null engine response.";
+    return response.text || "SYSTEM ERROR: Engine produced empty response.";
   } catch (error: any) {
-    console.error("Gemini Engine Error:", error);
-    if (error?.message?.includes('API_KEY')) {
-        return "CRITICAL ERROR: API Key missing or invalid. Verify system environment.";
-    }
-    throw error;
+    console.error("Gemini API Error:", error);
+    return `ENGINE ERROR [CODE 0x${error?.status || 'FAIL'}]: ${error?.message || "Internal command processing exception."}`;
   }
 }
 
 export async function speakResponse(text: string) {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
-    const cleanText = text.replace(/```[\s\S]*?```/g, " (Code output omitted for audio) ");
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) return;
+
+    const ai = new GoogleGenAI({ apiKey });
+    // Strip code blocks for cleaner audio
+    const cleanText = text.replace(/```[\s\S]*?```/g, " (Generated logic attached) ");
     
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: `Professional Narration: ${cleanText}` }] }],
+      contents: [{ parts: [{ text: `Professional System Voice: ${cleanText}` }] }],
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {

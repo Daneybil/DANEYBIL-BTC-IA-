@@ -46,7 +46,10 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ messages, onSendMessage, 
         }
 
         if (finalTranscript) {
-          setInput(prev => prev + (prev ? ' ' : '') + finalTranscript);
+          setInput(prev => {
+            const trimmed = prev.trim();
+            return trimmed ? `${trimmed} ${finalTranscript}` : finalTranscript;
+          });
         }
       };
 
@@ -56,7 +59,7 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ messages, onSendMessage, 
       };
 
       recognitionRef.current.onend = () => {
-        // Keep listening if we didn't explicitly stop
+        // Only flip state if we didn't stop it ourselves
       };
     }
   }, []);
@@ -79,7 +82,6 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ messages, onSendMessage, 
     e.preventDefault();
     if (!input.trim() && !image || isProcessing) return;
     
-    // Stop listening if we submit
     if (isListening) {
       recognitionRef.current?.stop();
       setIsListening(false);
@@ -236,6 +238,7 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ messages, onSendMessage, 
                    <img src={image} className="w-24 h-24 object-cover rounded-lg border border-white/10" />
                    <button 
                     onClick={() => setImage(null)}
+                    type="button"
                     className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg hover:bg-red-400 transition-colors"
                    >
                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
@@ -252,22 +255,22 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ messages, onSendMessage, 
                   handleSubmit(e);
                 }
               }}
-              placeholder={isListening ? "Listening... (System will transcribe as you speak)" : "Enter command (Absolute obedience active)..."}
-              className={`w-full bg-black/60 border ${isListening ? 'border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.2)]' : 'border-white/10'} rounded-2xl py-4 pl-5 pr-20 text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/5 transition-all resize-none scrollbar-hide min-h-[60px] max-h-[200px] shadow-inner`}
+              placeholder={isListening ? "Listening... Just speak your command." : "Enter command (Absolute obedience active)..."}
+              className={`w-full bg-black/60 border ${isListening ? 'border-red-500 ring-2 ring-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.3)]' : 'border-white/10'} rounded-2xl py-4 pl-5 pr-24 text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/5 transition-all resize-none scrollbar-hide min-h-[60px] max-h-[200px] shadow-inner font-medium`}
             />
             <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-3">
               <button 
                 type="button"
                 onClick={toggleListening}
-                className={`transition-all duration-300 rounded-full p-2 ${isListening ? 'text-red-500 animate-pulse bg-red-500/10 shadow-[0_0_10px_rgba(239,68,68,0.3)]' : 'text-slate-500 hover:text-blue-500'}`}
-                title="Voice Input (STT)"
+                className={`transition-all duration-300 rounded-full p-2.5 ${isListening ? 'bg-red-500 text-white shadow-lg animate-pulse' : 'text-slate-500 hover:text-blue-500 hover:bg-white/5'}`}
+                title="Voice Input"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
               </button>
               <button 
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                className="text-slate-500 hover:text-blue-500 transition-colors"
+                className="text-slate-500 hover:text-blue-500 p-2.5 transition-colors rounded-full hover:bg-white/5"
                 title="Upload Image"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.51a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
