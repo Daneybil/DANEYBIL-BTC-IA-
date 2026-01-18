@@ -10,6 +10,13 @@ export interface Message {
   isConfirmed?: boolean;
 }
 
+export interface ChatSession {
+  id: string;
+  title: string;
+  messages: Message[];
+  timestamp: Date;
+}
+
 export interface SystemStats {
   engineStatus: 'Optimal' | 'Degraded' | 'Offline';
   precisionLevel: number;
@@ -17,4 +24,6 @@ export interface SystemStats {
   securityHash: string;
   activeDeployments: number;
   strictMode: boolean;
+  audioOutputEnabled: boolean;
+  autoCopyEnabled: boolean;
 }

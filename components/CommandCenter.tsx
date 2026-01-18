@@ -29,22 +29,34 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ messages, onSendMessage, 
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (SpeechRecognition) {
       recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = false;
-      recognitionRef.current.interimResults = false;
+      recognitionRef.current.continuous = true;
+      recognitionRef.current.interimResults = true;
       recognitionRef.current.lang = 'en-US';
 
       recognitionRef.current.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        setInput(prev => prev + (prev ? ' ' : '') + transcript);
-        setIsListening(false);
+        let finalTranscript = '';
+        let interimTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          } else {
+            interimTranscript += event.results[i][0].transcript;
+          }
+        }
+
+        if (finalTranscript) {
+          setInput(prev => prev + (prev ? ' ' : '') + finalTranscript);
+        }
       };
 
-      recognitionRef.current.onerror = () => {
+      recognitionRef.current.onerror = (event: any) => {
+        console.error("Speech Recognition Error:", event.error);
         setIsListening(false);
       };
 
       recognitionRef.current.onend = () => {
-        setIsListening(false);
+        // Keep listening if we didn't explicitly stop
       };
     }
   }, []);
@@ -54,14 +66,25 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ messages, onSendMessage, 
       recognitionRef.current?.stop();
       setIsListening(false);
     } else {
-      recognitionRef.current?.start();
-      setIsListening(true);
+      try {
+        recognitionRef.current?.start();
+        setIsListening(true);
+      } catch (e) {
+        console.error("Speech recognition start failed", e);
+      }
     }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() && !image || isProcessing) return;
+    
+    // Stop listening if we submit
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+    }
+
     onSendMessage(input, image || undefined);
     setInput('');
     setImage(null);
@@ -92,9 +115,9 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ messages, onSendMessage, 
         const language = langMatch ? langMatch[1] : '';
         const code = part.replace(/```[\w]*\n?/, '').replace(/```$/, '').trim();
         return (
-          <div key={i} className="my-6 relative group border border-slate-800 rounded-xl overflow-hidden shadow-2xl">
-            <div className="bg-slate-900 px-4 py-2 flex justify-between items-center border-b border-slate-800">
-              <span className="text-[10px] font-bold mono text-slate-500 uppercase tracking-widest">{language || 'CODE'}</span>
+          <div key={i} className="my-6 relative group border border-white/10 rounded-xl overflow-hidden shadow-2xl bg-black/80">
+            <div className="bg-slate-900/50 px-4 py-2 flex justify-between items-center border-b border-white/5">
+              <span className="text-[10px] font-bold mono text-slate-400 uppercase tracking-widest">{language || 'CODE'}</span>
               <button 
                 onClick={() => copyToClipboard(part)}
                 className="text-blue-400 hover:text-blue-300 text-[10px] font-bold flex items-center gap-1.5 transition-all"
@@ -103,7 +126,7 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ messages, onSendMessage, 
                 COPY
               </button>
             </div>
-            <pre className="bg-[#020617] p-6 mono text-xs leading-relaxed text-blue-100/90 overflow-x-auto scrollbar-hide">
+            <pre className="p-6 mono text-xs leading-relaxed text-blue-100/90 overflow-x-auto scrollbar-hide">
               <code>{code}</code>
             </pre>
           </div>
@@ -114,12 +137,12 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ messages, onSendMessage, 
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#020617]">
-      <div className="px-8 py-3 border-b border-slate-800/40 bg-black/20 flex justify-between items-center">
+    <div className="flex flex-col h-full bg-transparent">
+      <div className="px-8 py-3 border-b border-white/5 bg-black/40 backdrop-blur-md flex justify-between items-center">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${strictMode ? 'bg-red-500' : 'bg-emerald-500'}`}></div>
-            <span className="text-[10px] font-bold mono uppercase text-slate-500 tracking-widest">
+            <div className={`w-2 h-2 rounded-full ${strictMode ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]' : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]'}`}></div>
+            <span className="text-[10px] font-bold mono uppercase text-slate-400 tracking-widest">
               STRICT MODE: {strictMode ? 'ACTIVE' : 'OFF'}
             </span>
           </div>
@@ -160,8 +183,8 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ messages, onSendMessage, 
               
               <div className={`p-6 rounded-2xl transition-all ${
                 msg.role === 'user' 
-                ? 'bg-blue-600 text-white shadow-2xl shadow-blue-600/10' 
-                : 'bg-slate-900/40 border border-slate-800/60 text-slate-200 backdrop-blur-md'
+                ? 'bg-blue-600 text-white shadow-2xl shadow-blue-600/20' 
+                : 'bg-black/40 border border-white/10 text-slate-200 backdrop-blur-md shadow-xl'
               }`}>
                 {msg.image && (
                   <div className="mb-4 rounded-xl overflow-hidden border border-white/10 max-w-sm shadow-2xl">
@@ -172,7 +195,7 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ messages, onSendMessage, 
                   {renderMessageContent(msg)}
                 </div>
                 {msg.needsConfirmation && msg.role === 'assistant' && (
-                  <div className="mt-4 pt-4 border-t border-slate-800 flex gap-3">
+                  <div className="mt-4 pt-4 border-t border-white/5 flex gap-3">
                     <button 
                       onClick={() => onSendMessage("I CONFIRM THIS COMMAND. EXECUTE.")}
                       className="px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-500 transition-all flex items-center gap-2"
@@ -182,7 +205,7 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ messages, onSendMessage, 
                     </button>
                     <button 
                       onClick={() => onSendMessage("CANCEL COMMAND.")}
-                      className="px-4 py-2 bg-slate-800 text-slate-300 text-xs font-bold rounded-lg hover:bg-slate-700 transition-all"
+                      className="px-4 py-2 bg-white/10 text-slate-300 text-xs font-bold rounded-lg hover:bg-white/20 transition-all"
                     >
                       CANCEL
                     </button>
@@ -204,13 +227,13 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ messages, onSendMessage, 
         )}
       </div>
 
-      <div className="p-8 border-t border-slate-800/40 bg-black/40 backdrop-blur-xl">
+      <div className="p-8 border-t border-white/5 bg-black/40 backdrop-blur-2xl">
         <form onSubmit={handleSubmit} className="max-w-4xl mx-auto flex gap-4 items-end">
           <div className="flex-1 relative group">
             {image && (
-              <div className="absolute bottom-full mb-4 left-0 p-2 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl animate-in fade-in slide-in-from-bottom-2">
+              <div className="absolute bottom-full mb-4 left-0 p-2 bg-black/90 border border-white/10 rounded-xl shadow-2xl animate-in fade-in slide-in-from-bottom-2">
                  <div className="relative">
-                   <img src={image} className="w-24 h-24 object-cover rounded-lg border border-slate-700" />
+                   <img src={image} className="w-24 h-24 object-cover rounded-lg border border-white/10" />
                    <button 
                     onClick={() => setImage(null)}
                     className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg hover:bg-red-400 transition-colors"
@@ -229,15 +252,15 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ messages, onSendMessage, 
                   handleSubmit(e);
                 }
               }}
-              placeholder={isListening ? "Listening for command..." : "Enter command (Absolute obedience active)..."}
-              className={`w-full bg-[#0f172a] border ${isListening ? 'border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.2)]' : 'border-slate-800'} rounded-2xl py-4 pl-5 pr-20 text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/10 transition-all resize-none scrollbar-hide min-h-[60px] max-h-[200px]`}
+              placeholder={isListening ? "Listening... (System will transcribe as you speak)" : "Enter command (Absolute obedience active)..."}
+              className={`w-full bg-black/60 border ${isListening ? 'border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.2)]' : 'border-white/10'} rounded-2xl py-4 pl-5 pr-20 text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/5 transition-all resize-none scrollbar-hide min-h-[60px] max-h-[200px] shadow-inner`}
             />
             <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-3">
               <button 
                 type="button"
                 onClick={toggleListening}
-                className={`transition-colors ${isListening ? 'text-red-500 animate-pulse' : 'text-slate-500 hover:text-blue-500'}`}
-                title="Voice Input"
+                className={`transition-all duration-300 rounded-full p-2 ${isListening ? 'text-red-500 animate-pulse bg-red-500/10 shadow-[0_0_10px_rgba(239,68,68,0.3)]' : 'text-slate-500 hover:text-blue-500'}`}
+                title="Voice Input (STT)"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
               </button>
@@ -255,7 +278,7 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ messages, onSendMessage, 
           <button 
             type="submit"
             disabled={isProcessing || (!input.trim() && !image)}
-            className="h-[60px] px-8 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-600 text-white font-bold rounded-2xl transition-all shadow-2xl shadow-blue-500/20 flex items-center justify-center group/btn"
+            className="h-[60px] px-8 bg-blue-600 hover:bg-blue-500 disabled:bg-white/5 disabled:text-slate-700 text-white font-bold rounded-2xl transition-all shadow-2xl shadow-blue-500/20 flex items-center justify-center group/btn"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="group-hover/btn:-translate-y-1 transition-transform"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
           </button>

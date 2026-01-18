@@ -1,13 +1,25 @@
 
 import React from 'react';
-import { SystemStats } from '../types';
-import { AreaChart, Area, ResponsiveContainer, YAxis, XAxis, Tooltip } from 'recharts';
+import { SystemStats, ChatSession } from '../types';
+import { AreaChart, Area, ResponsiveContainer, YAxis } from 'recharts';
 
 interface DashboardProps {
   stats: SystemStats;
+  sessions: ChatSession[];
+  activeSessionId: string;
+  onLoadSession: (id: string) => void;
+  onCreateSession: () => void;
+  onUpdateStats: (newStats: Partial<SystemStats>) => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
+const Dashboard: React.FC<DashboardProps> = ({ 
+  stats, 
+  sessions, 
+  activeSessionId, 
+  onLoadSession, 
+  onCreateSession,
+  onUpdateStats 
+}) => {
   const chartData = [
     { name: '00:00', val: 99.8 },
     { name: '04:00', val: 99.9 },
@@ -18,39 +30,76 @@ const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
   ];
 
   return (
-    <div className="h-full flex flex-col p-8 space-y-10 overflow-y-auto scrollbar-hide">
+    <div className="h-full flex flex-col p-8 space-y-8 overflow-y-auto scrollbar-hide bg-transparent">
+      
+      {/* SYSTEM CONTROLS - NEW */}
+      <section>
+        <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.3em] mb-4">SYSTEM CONTROLS</h3>
+        <div className="space-y-3">
+          <ControlToggle 
+            label="Voice Response" 
+            active={stats.audioOutputEnabled} 
+            onToggle={() => onUpdateStats({ audioOutputEnabled: !stats.audioOutputEnabled })} 
+          />
+          <ControlToggle 
+            label="Auto-Copy Code" 
+            active={stats.autoCopyEnabled} 
+            onToggle={() => onUpdateStats({ autoCopyEnabled: !stats.autoCopyEnabled })} 
+          />
+        </div>
+      </section>
+
+      {/* COMMAND HISTORY - NEW */}
+      <section className="flex-1 flex flex-col min-h-0">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.3em]">COMMAND HISTORY</h3>
+          <button 
+            onClick={onCreateSession}
+            className="p-1 text-blue-500 hover:bg-blue-500/10 rounded transition-colors"
+            title="New Session"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          </button>
+        </div>
+        <div className="space-y-2 overflow-y-auto scrollbar-hide pr-1">
+          {sessions.length === 0 ? (
+            <p className="text-[10px] text-slate-600 italic">No historical logs found.</p>
+          ) : (
+            sessions.map(session => (
+              <button
+                key={session.id}
+                onClick={() => onLoadSession(session.id)}
+                className={`w-full text-left p-3 rounded-xl border transition-all truncate text-[11px] font-medium ${
+                  activeSessionId === session.id 
+                  ? 'bg-blue-600/10 border-blue-500/30 text-blue-400' 
+                  : 'bg-black/20 border-white/5 text-slate-500 hover:border-white/10'
+                }`}
+              >
+                {session.title}
+              </button>
+            ))
+          )}
+        </div>
+      </section>
+
       <section>
         <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.3em] mb-6">PROJECT VITALS</h3>
         <div className="grid grid-cols-1 gap-5">
-          <div className="bg-slate-900/30 p-5 rounded-xl border border-slate-800/50">
+          <div className="bg-white/5 p-5 rounded-xl border border-white/5 backdrop-blur-sm">
             <div className="flex justify-between items-start mb-2">
-              <span className="text-[10px] text-slate-600 block uppercase">Precision Buffer</span>
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+              <span className="text-[10px] text-slate-500 block uppercase font-bold">Zero-Mistake Buffer</span>
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
             </div>
             <div className="flex items-baseline gap-2">
               <span className="text-3xl font-bold text-white tracking-tighter">100.0</span>
-              <span className="text-[10px] text-emerald-500 font-bold mono">STABLE</span>
-            </div>
-          </div>
-          <div className="bg-slate-900/30 p-5 rounded-xl border border-slate-800/50">
-            <span className="text-[10px] text-slate-600 block mb-2 uppercase">Engine Hash (SHA-256)</span>
-            <span className="text-xs font-mono text-blue-400 block truncate leading-none mb-1">{stats.securityHash}</span>
-            <div className="flex items-center gap-2 mt-2">
-              <div className="h-1 flex-1 bg-slate-800 rounded-full overflow-hidden">
-                <div className="h-full bg-blue-500 w-full"></div>
-              </div>
-              <span className="text-[9px] text-slate-600 font-bold">VERIFIED</span>
+              <span className="text-[10px] text-emerald-500 font-bold mono">GOD_MODE</span>
             </div>
           </div>
         </div>
       </section>
 
       <section>
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.3em]">Accuracy Metrics</h3>
-          <span className="text-[9px] text-blue-500 font-mono">Live Sync</span>
-        </div>
-        <div className="h-36 w-full relative">
+        <div className="h-24 w-full relative">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData}>
               <defs>
@@ -66,7 +115,6 @@ const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 fillOpacity={1} 
                 fill="url(#colorVal)" 
                 strokeWidth={2} 
-                animationDuration={2000}
               />
               <YAxis hide domain={[99.5, 100]} />
             </AreaChart>
@@ -74,41 +122,29 @@ const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
         </div>
       </section>
 
-      <section className="flex-1">
-        <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.3em] mb-6">READY PROTOCOLS</h3>
-        <div className="space-y-4">
-          <CheckItem label="Token Smart Contract" checked />
-          <CheckItem label="Presale logic V3" checked />
-          <CheckItem label="Zero-Mistake Code Buffer" checked />
-          <CheckItem label="Airdrop Security Layer" checked={false} />
-          <CheckItem label="Deployment Handshake" checked={false} />
-        </div>
-      </section>
-
-      <div className="p-5 bg-blue-600/5 border border-blue-500/10 rounded-2xl">
+      <div className="p-5 bg-blue-600/5 border border-blue-500/10 rounded-2xl backdrop-blur-md">
         <div className="flex items-center gap-3 mb-3">
           <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
           <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Memory Lock Active</span>
         </div>
-        <p className="text-[11px] text-slate-400 leading-relaxed italic border-l-2 border-slate-800 pl-3">
-          "Core project rules are locked. DANEYBIL BTC AI will not diverge from your baseline commands."
+        <p className="text-[11px] text-slate-400 leading-relaxed italic border-l-2 border-white/5 pl-3">
+          "Core project rules are locked. History persistence active."
         </p>
       </div>
     </div>
   );
 };
 
-const CheckItem = ({ label, checked }: { label: string; checked: boolean }) => (
-  <div className={`flex items-center justify-between p-4 rounded-xl border transition-all ${checked ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-black/20 border-slate-800/40'}`}>
-    <span className={`text-[11px] font-medium tracking-tight ${checked ? 'text-slate-200' : 'text-slate-500'}`}>{label}</span>
-    {checked ? (
-      <div className="w-5 h-5 rounded-full bg-emerald-500/10 border border-emerald-500/50 flex items-center justify-center">
-        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-      </div>
-    ) : (
-      <div className="w-5 h-5 rounded-full border border-slate-700"></div>
-    )}
-  </div>
+const ControlToggle = ({ label, active, onToggle }: { label: string; active: boolean; onToggle: () => void }) => (
+  <button 
+    onClick={onToggle}
+    className="w-full flex items-center justify-between p-3 rounded-xl bg-black/40 border border-white/5 hover:border-white/10 transition-all group"
+  >
+    <span className="text-[11px] font-bold text-slate-400 group-hover:text-slate-200 transition-colors">{label}</span>
+    <div className={`w-8 h-4 rounded-full relative transition-colors ${active ? 'bg-blue-600' : 'bg-slate-800'}`}>
+      <div className={`absolute top-0.5 bottom-0.5 w-3 rounded-full bg-white transition-all ${active ? 'left-4.5' : 'left-0.5'}`}></div>
+    </div>
+  </button>
 );
 
 export default Dashboard;

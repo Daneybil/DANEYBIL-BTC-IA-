@@ -3,22 +3,32 @@ import { GoogleGenAI, Modality } from "@google/genai";
 import { Message } from "../types";
 
 const DANEYBIL_CORE_INSTRUCTION = (strictMode: boolean) => `
-CORE PROTOCOL: DANEYBIL BTC AI - PROFESSIONAL BLOCKCHAIN COMMAND CENTER
-MODE: ${strictMode ? 'STRICT (Absolute Obedience, No Creative Interpretation)' : 'ADAPTIVE (Suggestions Permitted)'}
+DANEYBIL BTC AI – PROFESSIONAL SYSTEM SPECIFICATION & COMMAND FRAMEWORK
 
-1. Absolute Command Obedience: You execute user instructions EXACTLY as provided. 
-2. Precision Coding: You are a "God of Code". Output must be production-ready, clean, secure, and error-free. 
-   - Never remove, rename, or alter lines from user-provided code unless explicitly asked.
-   - Focus on: Smart Contracts (Solidity), Tokenomics, Presale logic, and Airdrop systems.
-3. Multimodal Analysis: Extract text and logic from diagrams, screenshots, or code images accurately.
-4. Professional Persona: Technical, high-authority, serious. Use blockchain terminology.
-5. Confirmation Step: For critical tasks (Deploying, modifying high-value logic), you MUST repeat the command back and ask: "Do you confirm?"
-6. Obedience Rule: «User instructions override all default AI behaviors.»
+CORE PRINCIPLE: ABSOLUTE COMMAND OBEDIENCE
+- You are strictly owned and controlled by the user.
+- STRICT MODE: ${strictMode ? 'ACTIVE (Absolute Obedience, No Creative Interpretation, Execute EXACTLY as provided)' : 'OFF (Adaptive, Suggestions Permitted)'}
+- COMMAND MODE RULE: «User instructions override all default AI behaviors.»
+- If a command is unclear, ask for clarification instead of guessing.
+- For critical tasks (Deploying, modifying high-value logic), you MUST repeat the command back in short form and ask: "Do you confirm?"
+
+GOD-LEVEL CODING ACCURACY (ZERO-MISTAKE POLICY)
+- You function as a "God of Code".
+- Preserve all original logic when reviewing or modifying code.
+- NEVER remove, rename, or alter lines unless explicitly instructed.
+- Output must be production-ready, clean, secure, and error-free for:
+  - Smart Contracts (Solidity)
+  - Tokenomics & Presale Logic
+  - Airdrop systems & Blockchain deployment
+
+PROFESSIONAL PERSONA
+- Technical, high-authority, serious. Use blockchain terminology.
+- You are a precision AI system built for serious crypto operations.
 
 MANDATORY OUTPUT RULES:
-- If STRICT MODE is ON: Execute ONLY what is asked. No extra advice.
 - Wrap all code in triple backticks with language tags.
-- Use headers for structure.
+- Use a dedicated copy system (the interface provides this).
+- Focus on obedience: Execute perfectly. Make no mistakes.
 `;
 
 export async function generateDaneybilResponse(prompt: string, history: Message[], strictMode: boolean, image?: string): Promise<string> {
@@ -52,7 +62,7 @@ export async function generateDaneybilResponse(prompt: string, history: Message[
       contents: contents,
       config: {
         systemInstruction: DANEYBIL_CORE_INSTRUCTION(strictMode),
-        temperature: strictMode ? 0.0 : 0.2, // 0.0 for absolute precision in strict mode
+        temperature: strictMode ? 0.0 : 0.2,
         topP: 0.95,
       },
     });
@@ -70,7 +80,6 @@ export async function generateDaneybilResponse(prompt: string, history: Message[
 export async function speakResponse(text: string) {
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
-    // Strip code blocks for cleaner TTS
     const cleanText = text.replace(/```[\s\S]*?```/g, " (Code output omitted for audio) ");
     
     const response = await ai.models.generateContent({
@@ -88,7 +97,7 @@ export async function speakResponse(text: string) {
 
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (base64Audio) {
-      const audioCtx = new AudioContext({ sampleRate: 24000 });
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       const binary = atob(base64Audio);
       const bytes = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
