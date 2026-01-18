@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Modality } from "@google/genai";
 import { Message } from "../types";
 
@@ -32,12 +31,8 @@ MANDATORY OUTPUT RULES:
 `;
 
 export async function generateDaneybilResponse(prompt: string, history: Message[], strictMode: boolean, image?: string): Promise<string> {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) {
-    return "ENGINE ERROR: API_KEY is missing. Please configure environment variables.";
-  }
-
-  const ai = new GoogleGenAI({ apiKey });
+  // Directly initialize using the injected process.env.API_KEY as per guidelines
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
   
   // Gemini API requires alternating roles starting with 'user'.
   const contents: any[] = [];
@@ -74,9 +69,9 @@ export async function generateDaneybilResponse(prompt: string, history: Message[
   }
 
   // Append the latest user message. 
-  // If the last role in 'contents' was 'user', we merge or skip to maintain alternation.
+  // If the last role in 'contents' was 'user', we merge to maintain alternation.
   if (contents.length > 0 && contents[contents.length - 1].role === 'user') {
-    contents[contents.length - 1].parts[0].text += `\n\n[Follow-up Command]: ${prompt}`;
+    contents[contents.length - 1].parts[0].text += `\n\n[Continuous Command]: ${prompt}`;
     if (image) contents[contents.length - 1].parts.push(currentParts[1]);
   } else {
     contents.push({
@@ -87,7 +82,7 @@ export async function generateDaneybilResponse(prompt: string, history: Message[
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview', // Using flash for lower latency on Vercel (prevents timeouts)
+      model: 'gemini-3-flash-preview',
       contents: contents,
       config: {
         systemInstruction: DANEYBIL_CORE_INSTRUCTION(strictMode),
@@ -99,16 +94,14 @@ export async function generateDaneybilResponse(prompt: string, history: Message[
     return response.text || "SYSTEM ERROR: Engine produced empty response.";
   } catch (error: any) {
     console.error("Gemini API Error:", error);
-    return `ENGINE ERROR [CODE 0x${error?.status || 'FAIL'}]: ${error?.message || "Internal command processing exception."}`;
+    // Throw error so App.tsx can handle the UI fallback
+    throw error;
   }
 }
 
 export async function speakResponse(text: string) {
   try {
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) return;
-
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
     // Strip code blocks for cleaner audio
     const cleanText = text.replace(/```[\s\S]*?```/g, " (Generated logic attached) ");
     
