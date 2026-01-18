@@ -60,8 +60,14 @@
   }
 }
 </script>
+<script>
+    // Ensure window.process exists to prevent runtime errors in the browser
+    window.process = window.process || { env: {} };
+</script>
 </head>
 <body class="overflow-hidden">
     <div id="root"></div>
+    <!-- CRITICAL: Added entry point script to mount the React app -->
+    <script type="module" src="./index.tsx"></script>
 </body>
 </html>
