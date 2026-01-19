@@ -31,15 +31,12 @@ MANDATORY OUTPUT RULES:
 `;
 
 export async function generateDaneybilResponse(prompt: string, history: Message[], strictMode: boolean, image?: string): Promise<string> {
-  // Directly initialize using the injected process.env.API_KEY as per guidelines
+  // Fresh instance to catch updated API key from window.aistudio
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
   
-  // Gemini API requires alternating roles starting with 'user'.
   const contents: any[] = [];
   let nextExpectedRole = 'user';
 
-  // We filter history to ensure we start with a 'user' message and alternate roles.
-  // We skip the initial 'assistant' welcome message to satisfy the 'must start with user' rule.
   for (const msg of history) {
     const role = msg.role === 'user' ? 'user' : 'model';
     if (role === nextExpectedRole && msg.text.trim()) {
@@ -51,7 +48,6 @@ export async function generateDaneybilResponse(prompt: string, history: Message[
     }
   }
 
-  // Current turn parts
   const currentParts: any[] = [{ text: prompt }];
   if (image) {
     try {
@@ -68,8 +64,6 @@ export async function generateDaneybilResponse(prompt: string, history: Message[
     }
   }
 
-  // Append the latest user message. 
-  // If the last role in 'contents' was 'user', we merge to maintain alternation.
   if (contents.length > 0 && contents[contents.length - 1].role === 'user') {
     contents[contents.length - 1].parts[0].text += `\n\n[Continuous Command]: ${prompt}`;
     if (image) contents[contents.length - 1].parts.push(currentParts[1]);
@@ -94,7 +88,11 @@ export async function generateDaneybilResponse(prompt: string, history: Message[
     return response.text || "SYSTEM ERROR: Engine produced empty response.";
   } catch (error: any) {
     console.error("Gemini API Error:", error);
-    // Throw error so App.tsx can handle the UI fallback
+    // Standardize error reporting for App.tsx to catch 403/404
+    const errorString = error?.message || (typeof error === 'string' ? error : JSON.stringify(error));
+    if (errorString.toLowerCase().includes('403') || errorString.toLowerCase().includes('permission') || errorString.toLowerCase().includes('not found')) {
+       throw new Error(`AUTH_ERROR: ${errorString}`);
+    }
     throw error;
   }
 }
@@ -102,7 +100,6 @@ export async function generateDaneybilResponse(prompt: string, history: Message[
 export async function speakResponse(text: string) {
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-    // Strip code blocks for cleaner audio
     const cleanText = text.replace(/```[\s\S]*?```/g, " (Generated logic attached) ");
     
     const response = await ai.models.generateContent({

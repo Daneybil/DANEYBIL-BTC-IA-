@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Message } from '../types';
 import { speakResponse } from '../services/geminiService';
@@ -13,6 +12,7 @@ interface CommandCenterProps {
 
 const CommandCenter: React.FC<CommandCenterProps> = ({ messages, onSendMessage, isProcessing, strictMode, onToggleStrict }) => {
   const [input, setInput] = useState('');
+  const [interimText, setInterimText] = useState('');
   const [image, setImage] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -45,35 +45,51 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ messages, onSendMessage, 
           }
         }
 
+        // Always update interim text for real-time feedback
+        setInterimText(interimTranscript);
+
         if (finalTranscript) {
           setInput(prev => {
             const trimmed = prev.trim();
             return trimmed ? `${trimmed} ${finalTranscript}` : finalTranscript;
           });
+          setInterimText(''); // Clear interim when finalized
         }
       };
 
       recognitionRef.current.onerror = (event: any) => {
         console.error("Speech Recognition Error:", event.error);
+        if (event.error === 'not-allowed') {
+          alert("Microphone access is blocked. Please enable it in your browser settings.");
+        }
         setIsListening(false);
       };
 
       recognitionRef.current.onend = () => {
-        // Only flip state if we didn't stop it ourselves
+        // Auto-restart if we are still in "listening" state (Chrome pauses recognition occasionally)
+        if (isListening) {
+          try {
+            recognitionRef.current?.start();
+          } catch (e) {
+            console.error("Auto-restart failed", e);
+          }
+        }
       };
     }
-  }, []);
+  }, [isListening]);
 
   const toggleListening = () => {
     if (isListening) {
-      recognitionRef.current?.stop();
       setIsListening(false);
+      recognitionRef.current?.stop();
+      setInterimText('');
     } else {
       try {
-        recognitionRef.current?.start();
         setIsListening(true);
+        recognitionRef.current?.start();
       } catch (e) {
         console.error("Speech recognition start failed", e);
+        setIsListening(false);
       }
     }
   };
@@ -90,6 +106,7 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ messages, onSendMessage, 
     onSendMessage(input, image || undefined);
     setInput('');
     setImage(null);
+    setInterimText('');
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -196,23 +213,6 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ messages, onSendMessage, 
                 <div className="text-[15px] font-medium tracking-tight">
                   {renderMessageContent(msg)}
                 </div>
-                {msg.needsConfirmation && msg.role === 'assistant' && (
-                  <div className="mt-4 pt-4 border-t border-white/5 flex gap-3">
-                    <button 
-                      onClick={() => onSendMessage("I CONFIRM THIS COMMAND. EXECUTE.")}
-                      className="px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-500 transition-all flex items-center gap-2"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                      CONFIRM
-                    </button>
-                    <button 
-                      onClick={() => onSendMessage("CANCEL COMMAND.")}
-                      className="px-4 py-2 bg-white/10 text-slate-300 text-xs font-bold rounded-lg hover:bg-white/20 transition-all"
-                    >
-                      CANCEL
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -246,18 +246,25 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ messages, onSendMessage, 
                  </div>
               </div>
             )}
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSubmit(e);
-                }
-              }}
-              placeholder={isListening ? "Listening... Just speak your command." : "Enter command (Absolute obedience active)..."}
-              className={`w-full bg-black/60 border ${isListening ? 'border-red-500 ring-2 ring-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.3)]' : 'border-white/10'} rounded-2xl py-4 pl-5 pr-24 text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/5 transition-all resize-none scrollbar-hide min-h-[60px] max-h-[200px] shadow-inner font-medium`}
-            />
+            <div className="relative">
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSubmit(e);
+                  }
+                }}
+                placeholder={isListening ? "Listening... Just speak your command." : "Enter command (Absolute obedience active)..."}
+                className={`w-full bg-black/60 border ${isListening ? 'border-red-500 ring-2 ring-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.3)]' : 'border-white/10'} rounded-2xl py-4 pl-5 pr-24 text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/5 transition-all resize-none scrollbar-hide min-h-[60px] max-h-[200px] shadow-inner font-medium`}
+              />
+              {interimText && (
+                <div className="absolute left-5 bottom-2 text-blue-400/70 text-[10px] mono font-bold animate-pulse">
+                   >> {interimText}
+                </div>
+              )}
+            </div>
             <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-3">
               <button 
                 type="button"

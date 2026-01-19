@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Message, SystemStats, ChatSession } from './types';
 import CommandCenter from './components/CommandCenter';
@@ -30,6 +29,26 @@ const App: React.FC = () => {
   });
   const [isProcessing, setIsProcessing] = useState(false);
   const [isLiveCallActive, setIsLiveCallActive] = useState(false);
+  const [hasApiKey, setHasApiKey] = useState<boolean>(true);
+
+  // Mandatory API Key check for Gemini 3 models
+  useEffect(() => {
+    const checkKey = async () => {
+      if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        setHasApiKey(hasKey);
+      }
+    };
+    checkKey();
+  }, []);
+
+  const handleOpenKeySelector = async () => {
+    if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
+      await window.aistudio.openSelectKey();
+      // Assume success and proceed to the app as per race condition guidelines
+      setHasApiKey(true);
+    }
+  };
 
   // Load history on mount
   useEffect(() => {
@@ -102,32 +121,39 @@ const App: React.FC = () => {
 
       setMessages(prev => [...prev, assistantMsg]);
 
-      // Handle Audio Output Feature
       if (stats.audioOutputEnabled) {
         speakResponse(responseText);
       }
 
-      // Handle Auto-Copy Feature
       if (stats.autoCopyEnabled && hasCode) {
-        // More robust extraction that handles potential text around multiple blocks
         const codeBlocks = responseText.match(/```(?:[\w]*\n)?([\s\S]*?)```/g);
         if (codeBlocks && codeBlocks.length > 0) {
-          // Join multiple code blocks or just copy the most relevant first one
           const primaryCode = codeBlocks[0].replace(/```[\w]*\n?/, '').replace(/```$/, '').trim();
-          navigator.clipboard.writeText(primaryCode).then(() => {
-            console.log("DANEYBIL: Command logic auto-copied to clipboard.");
-          });
+          navigator.clipboard.writeText(primaryCode);
         }
       }
 
-    } catch (error) {
-      console.error("System Error:", error);
+    } catch (error: any) {
+      console.error("System Error caught in App:", error);
+      const errorMsg = error?.message || (typeof error === 'string' ? error : JSON.stringify(error));
+      
+      const isAuthError = errorMsg.includes('AUTH_ERROR') || 
+                          errorMsg.includes('403') || 
+                          errorMsg.includes('permission') || 
+                          errorMsg.includes('not found');
+      
       setMessages(prev => [...prev, {
-        id: 'err',
+        id: Date.now().toString(),
         role: 'assistant',
-        text: "COMMAND FAILURE: Critical exception encountered. Resetting precision buffers. Please re-issue command.",
+        text: isAuthError 
+          ? "COMMAND REJECTED: Gemini API Authentication Failure (403/404). A valid API key from a billing-enabled Google Cloud project is required for this model. Please use the button below to authorize."
+          : `COMMAND FAILURE: ${errorMsg.slice(0, 150)}...`,
         timestamp: new Date()
       }]);
+
+      if (isAuthError) {
+        setHasApiKey(false); // Trigger the "Credentials Required" UI
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -169,30 +195,62 @@ const App: React.FC = () => {
       />
       
       <div className="flex flex-1 overflow-hidden">
-        <main className="flex-1 flex flex-col relative">
-          {isLiveCallActive ? (
-            <LiveCall onClose={() => setIsLiveCallActive(false)} />
-          ) : (
-            <CommandCenter 
-              messages={messages} 
-              onSendMessage={handleSendMessage} 
-              isProcessing={isProcessing} 
-              strictMode={stats.strictMode}
-              onToggleStrict={(val) => updateStats({ strictMode: val })}
-            />
-          )}
-        </main>
-        
-        <aside className="w-80 border-l border-slate-800/50 bg-black/40 backdrop-blur-xl hidden xl:block">
-          <Dashboard 
-            stats={stats} 
-            sessions={sessions}
-            activeSessionId={activeSessionId}
-            onLoadSession={loadSession}
-            onCreateSession={createNewSession}
-            onUpdateStats={updateStats}
-          />
-        </aside>
+        {!hasApiKey ? (
+          <div className="flex-1 flex flex-col items-center justify-center p-10 text-center bg-black/60 backdrop-blur-xl z-[100]">
+            <div className="w-20 h-20 bg-blue-600/20 rounded-2xl flex items-center justify-center mb-6 border border-blue-500/30">
+              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <h2 className="text-2xl font-bold mb-4 uppercase tracking-wider">Authentication Required</h2>
+            <p className="text-slate-400 max-w-md mb-8 leading-relaxed">
+              DANEYBIL AI requires a valid API key from a <strong>paid Google Cloud project</strong> to operate. 
+              The current deployment context is restricted.
+            </p>
+            <div className="flex flex-col gap-4">
+              <button 
+                onClick={handleOpenKeySelector}
+                className="px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-all shadow-2xl shadow-blue-500/20 flex items-center gap-3"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3L15.5 7.5z"/></svg>
+                CONNECT VALID API KEY
+              </button>
+              <a 
+                href="https://ai.google.dev/gemini-api/docs/billing" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-[10px] text-slate-500 hover:text-blue-400 underline uppercase tracking-widest"
+              >
+                Billing Documentation & Setup
+              </a>
+            </div>
+          </div>
+        ) : (
+          <>
+            <main className="flex-1 flex flex-col relative">
+              {isLiveCallActive ? (
+                <LiveCall onClose={() => setIsLiveCallActive(false)} />
+              ) : (
+                <CommandCenter 
+                  messages={messages} 
+                  onSendMessage={handleSendMessage} 
+                  isProcessing={isProcessing} 
+                  strictMode={stats.strictMode}
+                  onToggleStrict={(val) => updateStats({ strictMode: val })}
+                />
+              )}
+            </main>
+            
+            <aside className="w-80 border-l border-slate-800/50 bg-black/40 backdrop-blur-xl hidden xl:block">
+              <Dashboard 
+                stats={stats} 
+                sessions={sessions}
+                activeSessionId={activeSessionId}
+                onLoadSession={loadSession}
+                onCreateSession={createNewSession}
+                onUpdateStats={updateStats}
+              />
+            </aside>
+          </>
+        )}
       </div>
 
       <footer className="h-8 border-t border-slate-800/50 flex items-center justify-between px-6 text-[10px] mono text-slate-500 bg-black/80 backdrop-blur-sm">
