@@ -146,7 +146,7 @@ const App: React.FC = () => {
         id: Date.now().toString(),
         role: 'assistant',
         text: isAuthError 
-          ? "COMMAND REJECTED: Gemini API Authentication Failure (403/404). A valid API key from a billing-enabled Google Cloud project is required for this model. Please use the button below to authorize."
+          ? "COMMAND REJECTED: Gemini API Authentication Failure (403/404). This version of DANEYBIL AI requires a paid billing project. Please use the button below to connect a valid API key."
           : `COMMAND FAILURE: ${errorMsg.slice(0, 150)}...`,
         timestamp: new Date()
       }]);
@@ -202,8 +202,7 @@ const App: React.FC = () => {
             </div>
             <h2 className="text-2xl font-bold mb-4 uppercase tracking-wider">Authentication Required</h2>
             <p className="text-slate-400 max-w-md mb-8 leading-relaxed">
-              DANEYBIL AI requires a valid API key from a <strong>paid Google Cloud project</strong> to operate. 
-              The current deployment context is restricted.
+              DANEYBIL AI detected a permission error (403). To function on Vercel, you must connect an API key from a <strong>paid Google Cloud project</strong> with billing enabled.
             </p>
             <div className="flex flex-col gap-4">
               <button 

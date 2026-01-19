@@ -18,6 +18,12 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ messages, onSendMessage, 
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
+  // CRITICAL: Use a ref to track listening state for the callback closure to prevent stale state issues
+  const isListeningRef = useRef(false);
+
+  useEffect(() => {
+    isListeningRef.current = isListening;
+  }, [isListening]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -27,7 +33,7 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ messages, onSendMessage, 
 
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (SpeechRecognition) {
+    if (SpeechRecognition && !recognitionRef.current) {
       recognitionRef.current = new SpeechRecognition();
       recognitionRef.current.continuous = true;
       recognitionRef.current.interimResults = true;
@@ -45,7 +51,6 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ messages, onSendMessage, 
           }
         }
 
-        // Always update interim text for real-time feedback
         setInterimText(interimTranscript);
 
         if (finalTranscript) {
@@ -53,7 +58,7 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ messages, onSendMessage, 
             const trimmed = prev.trim();
             return trimmed ? `${trimmed} ${finalTranscript}` : finalTranscript;
           });
-          setInterimText(''); // Clear interim when finalized
+          setInterimText('');
         }
       };
 
@@ -66,17 +71,17 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ messages, onSendMessage, 
       };
 
       recognitionRef.current.onend = () => {
-        // Auto-restart if we are still in "listening" state (Chrome pauses recognition occasionally)
-        if (isListening) {
+        // Auto-restart if we should still be listening (e.g. Chrome silent timeout)
+        if (isListeningRef.current) {
           try {
-            recognitionRef.current?.start();
+            recognitionRef.current.start();
           } catch (e) {
             console.error("Auto-restart failed", e);
           }
         }
       };
     }
-  }, [isListening]);
+  }, []);
 
   const toggleListening = () => {
     if (isListening) {
@@ -166,6 +171,7 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ messages, onSendMessage, 
             </span>
           </div>
           <button 
+            type="button"
             onClick={() => onToggleStrict(!strictMode)}
             className={`text-[9px] px-2 py-0.5 rounded border ${strictMode ? 'border-red-900/50 text-red-500' : 'border-slate-700 text-slate-400'} hover:bg-white/5 transition-all`}
           >
